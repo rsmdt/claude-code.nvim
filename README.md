@@ -46,10 +46,12 @@ require("claude-code").setup({
       width = 0.3,      -- 30% of editor width for sidebar mode
       input_height = 5, -- Height of input area in lines for sidebar mode
       float = true,     -- Whether to use floating windows (true) or splits (false)
-      border = "rounded" -- Border style: "none", "single", "double", "rounded", "solid", or "shadow"
+      border = "rounded", -- Border style: "none", "single", "double", "rounded", "solid", or "shadow"
+      output = "nowrap"   -- Text display mode: "wrap" or "nowrap" (default)
     }
   },
   command = "claude", -- Command to run (change if claude is installed elsewhere)
+  no_stream = true,    -- Use --no-stream flag to prevent raw mode errors
   mappings = {
     close = "<leader><Esc>",  -- Key to exit and close the window (leader key + Escape)
   },
@@ -85,8 +87,11 @@ vim.keymap.set('n', '<leader>cx', ':ClaudeCode close<CR>', { silent = true })
 #### Sidebar Mode
 
 - Type your queries in the input buffer at the bottom of the sidebar
-- Press `Ctrl+Enter` to submit your query to Claude
-- Responses appear in the output buffer above the input
+- Press `Enter` to submit your query to Claude
+- Press `Shift+Enter` to add a new line in the input area
+- Responses appear in the output buffer above the input in real-time
+- See the thinking animation with elapsed time while Claude processes your query
+- Press `Esc` to interrupt the current query if it's taking too long
 - Press `<leader><Esc>` to close the sidebar
 - Use `Ctrl+h`, `Ctrl+j`, `Ctrl+k`, `Ctrl+l` to navigate between windows
 
