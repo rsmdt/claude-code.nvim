@@ -38,10 +38,16 @@ In your Neovim configuration:
 ```lua
 require("claude-code").setup({
   -- Optional configuration
-  mode = "terminal",  -- Mode to use: "terminal" (more modes to be added)
+  mode = "terminal",  -- Mode to use: "terminal" or "sidebar"
   window = {
-    width = 0.8,      -- 80% of editor width
-    height = 0.8,     -- 80% of editor height
+    width = 0.8,      -- 80% of editor width (terminal mode)
+    height = 0.8,     -- 80% of editor height (terminal mode)
+    sidebar = {
+      width = 0.3,      -- 30% of editor width for sidebar mode
+      input_height = 5, -- Height of input area in lines for sidebar mode
+      float = true,     -- Whether to use floating windows (true) or splits (false)
+      border = "rounded" -- Border style: "none", "single", "double", "rounded", "solid", or "shadow"
+    }
   },
   command = "claude", -- Command to run (change if claude is installed elsewhere)
   mappings = {
