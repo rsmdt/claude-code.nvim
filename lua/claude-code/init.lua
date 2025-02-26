@@ -36,8 +36,8 @@ function M.is_open()
   return false, nil
 end
 
--- Function to forcibly close the Claude Code terminal
-function M.force_close()
+-- Function to close the Claude Code terminal
+function M.close()
   -- First check if the current buffer is a Claude Code buffer
   local bufnr = vim.api.nvim_get_current_buf()
   local is_claude_buffer = pcall(function() 
@@ -80,10 +80,6 @@ function M.force_close()
   end
 end
 
--- Function to close the Claude Code terminal
-function M.close()
-  M.force_close()
-end
 
 -- Open Claude CLI in terminal
 function M.open()
@@ -136,7 +132,7 @@ function M.open()
     bufnr, 
     "t", 
     M.config.mappings.close, 
-    "<C-\\><C-n>:lua require('claude-code').force_close()<CR>", 
+    "<C-\\><C-n>:lua require('claude-code').close()<CR>", 
     { noremap = true, silent = true }
   )
   
