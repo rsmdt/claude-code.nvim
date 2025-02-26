@@ -36,9 +36,10 @@ In your Neovim configuration:
 ```lua
 require("claude-code").setup({
   -- Optional configuration
+  mode = "terminal",  -- Mode to use: "terminal" (more modes to be added)
   window = {
-    width = 0.8,     -- 80% of editor width
-    height = 0.8,    -- 80% of editor height
+    width = 0.8,      -- 80% of editor width
+    height = 0.8,     -- 80% of editor height
   },
   command = "claude", -- Command to run (change if claude is installed elsewhere)
   mappings = {

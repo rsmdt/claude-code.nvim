@@ -2,11 +2,12 @@ local M = {}
 
 -- Configuration with defaults
 M.config = {
+  mode = "terminal",   -- Mode to use: "terminal" (more modes to be added)
   window = {
-    width = 0.8,     -- 80% of editor width
-    height = 0.8,    -- 80% of editor height
+    width = 0.8,       -- 80% of editor width
+    height = 0.8,      -- 80% of editor height
   },
-  command = "claude", -- Assumes claude cli is in path
+  command = "claude",  -- Assumes claude cli is in path
   mappings = {
     close = "<leader><Esc>",  -- Key to exit and close the window
   },
@@ -81,8 +82,17 @@ function M.close()
 end
 
 
--- Open Claude CLI in terminal
+-- Open Claude CLI based on configured mode
 function M.open()
+  if M.config.mode == "terminal" then
+    M.open_terminal()
+  else
+    vim.notify("Unsupported mode: " .. M.config.mode, vim.log.levels.ERROR)
+  end
+end
+
+-- Open Claude CLI in terminal mode
+function M.open_terminal()
   -- Calculate window size
   local width = math.floor(vim.o.columns * M.config.window.width)
   local height = math.floor(vim.o.lines * M.config.window.height)
@@ -127,7 +137,7 @@ function M.open()
   })
   
   -- Set up terminal mode mappings for this buffer
-  -- Map leader+Escape to forcibly terminate process and close window
+  -- Map leader+Escape to terminate process and close window
   vim.api.nvim_buf_set_keymap(
     bufnr, 
     "t", 
