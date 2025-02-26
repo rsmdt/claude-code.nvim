@@ -17,10 +17,41 @@ function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 end
 
--- Function to close the terminal window
-function M.close_window()
-  -- Force closing the current buffer regardless of changes
-  vim.cmd("bdelete! %")
+-- Function to forcibly close the terminal window and kill the process
+function M.force_close()
+  -- Get current buffer
+  local bufnr = vim.api.nvim_get_current_buf()
+  
+  -- Check if this is a claude-code buffer
+  local is_claude_buffer = pcall(function() 
+    return vim.api.nvim_buf_get_var(bufnr, "claude_code_terminal") 
+  end)
+  
+  if is_claude_buffer then
+    -- Get window ID for buffer
+    local win_id = vim.fn.bufwinid(bufnr)
+    
+    -- Stop any running job in this buffer (send SIGTERM)
+    pcall(function()
+      local job_id = vim.b[bufnr].terminal_job_id
+      if job_id then
+        vim.fn.jobstop(job_id)
+      end
+    end)
+    
+    -- Wait a brief moment to allow the job to terminate
+    vim.cmd("sleep 100m")
+    
+    -- Close the window if it exists
+    if win_id ~= -1 then
+      pcall(vim.api.nvim_win_close, win_id, true)
+    end
+    
+    -- Delete the buffer forcefully
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+    end
+  end
 end
 
 -- Open Claude CLI in terminal
@@ -69,12 +100,12 @@ function M.open()
   })
   
   -- Set up terminal mode mappings for this buffer
-  -- Map leader+Escape to exit terminal mode and close window
+  -- Map leader+Escape to forcibly terminate process and close window
   vim.api.nvim_buf_set_keymap(
     bufnr, 
     "t", 
     M.config.mappings.close, 
-    "<C-\\><C-n>:bdelete!<CR>", 
+    "<C-\\><C-n>:lua require('claude-code').force_close()<CR>", 
     { noremap = true, silent = true }
   )
   
