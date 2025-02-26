@@ -16,17 +16,16 @@ A minimal Neovim plugin that launches the [Claude Code CLI](https://anthropic.co
 
 ## Installation
 
-Using [packer.nvim](https://github.com/wbthomason/packer.nvim):
-
-```lua
-use 'rsmdt/claude-code.nvim'
-```
-
 Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
   'rsmdt/claude-code.nvim',
+  keys = {
+    { "<leader>cc", "<cmd>ClaudeCode toggle<cr>", desc = "Toggle Claude Code" },
+    { "<leader>co", "<cmd>ClaudeCode open<cr>", desc = "Open Claude Code" },
+    { "<leader>cx", "<cmd>ClaudeCode close<cr>", desc = "Close Claude Code" },
+  },
 }
 ```
 
@@ -50,11 +49,25 @@ require("claude-code").setup({
 
 ## Usage
 
-Run the `:ClaudeCode` command to open a terminal running the [Claude CLI](https://anthropic.com/claude/code).
+The plugin provides several commands:
+
+- `:ClaudeCode` or `:ClaudeCode toggle` - Toggle the Claude CLI terminal (open if closed, close if open)
+- `:ClaudeCode open` - Open a new Claude CLI terminal
+- `:ClaudeCode close` - Close any open Claude CLI terminal
+
+You can map these commands to keys in your Neovim configuration:
+
+```lua
+-- Example keymaps
+vim.keymap.set('n', '<leader>cc', ':ClaudeCode toggle<CR>', { silent = true })
+vim.keymap.set('n', '<leader>co', ':ClaudeCode open<CR>', { silent = true })
+vim.keymap.set('n', '<leader>cx', ':ClaudeCode close<CR>', { silent = true })
+```
 
 ### Controls
 
 - Press `<leader><Esc>` to exit terminal mode and close the Claude Code window
+- Use `Ctrl+h`, `Ctrl+j`, `Ctrl+k`, `Ctrl+l` to navigate between windows while in terminal mode
 - The window will automatically close when the Claude CLI process exits
 - While in the [Claude CLI](https://anthropic.com/claude/code), use its native commands and functionality
 - You can customize the exit key by changing the `mappings.close` option
