@@ -4,7 +4,9 @@ A minimal Neovim plugin that launches the [Claude Code CLI](https://anthropic.co
 
 ## Features
 
-- Opens a split terminal window running the [Claude CLI](https://anthropic.com/claude/code)
+- Multiple interface modes:
+  - **Terminal mode**: Opens a split terminal window running the Claude CLI
+  - **Sidebar mode**: Opens a right sidebar with separate input and output buffers
 - Configurable window size
 - Auto-closes when Claude CLI exits
 - Simple and lightweight implementation
@@ -67,10 +69,23 @@ vim.keymap.set('n', '<leader>cx', ':ClaudeCode close<CR>', { silent = true })
 
 ### Controls
 
+#### Terminal Mode
+
 - Press `<leader><Esc>` to exit terminal mode and close the Claude Code window
 - Use `Ctrl+h`, `Ctrl+j`, `Ctrl+k`, `Ctrl+l` to navigate between windows while in terminal mode
 - The window will automatically close when the Claude CLI process exits
-- While in the [Claude CLI](https://anthropic.com/claude/code), use its native commands and functionality
+- While in the terminal, use Claude CLI's native commands and functionality
+
+#### Sidebar Mode
+
+- Type your queries in the input buffer at the bottom of the sidebar
+- Press `Ctrl+Enter` to submit your query to Claude
+- Responses appear in the output buffer above the input
+- Press `<leader><Esc>` to close the sidebar
+- Use `Ctrl+h`, `Ctrl+j`, `Ctrl+k`, `Ctrl+l` to navigate between windows
+
+#### General
+
 - You can customize the exit key by changing the `mappings.close` option
 - Note: By default, the leader key is typically `\` unless you've customized it
 

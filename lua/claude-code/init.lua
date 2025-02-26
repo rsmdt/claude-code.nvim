@@ -20,13 +20,19 @@ end
 
 -- Check if Claude Code terminal is currently open
 function M.is_open()
-  -- Check all buffers for claude_code_terminal flag
+  -- Check all buffers for claude_code flag
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    local is_claude_buffer = pcall(function() 
+    -- Check for claude_code_terminal flag (terminal mode)
+    local is_claude_terminal = pcall(function() 
       return vim.api.nvim_buf_get_var(bufnr, "claude_code_terminal") 
     end)
     
-    if is_claude_buffer and vim.api.nvim_buf_is_valid(bufnr) then
+    -- Check for claude_code_sidebar flag (sidebar mode)
+    local is_claude_sidebar = pcall(function() 
+      return vim.api.nvim_buf_get_var(bufnr, "claude_code_sidebar") 
+    end)
+    
+    if (is_claude_terminal or is_claude_sidebar) and vim.api.nvim_buf_is_valid(bufnr) then
       -- Check if buffer has a window (is visible)
       if vim.fn.bufwinid(bufnr) ~= -1 then
         return true, bufnr
@@ -37,47 +43,106 @@ function M.is_open()
   return false, nil
 end
 
--- Function to close the Claude Code terminal
+-- Function to close any Claude Code interface
 function M.close()
-  -- First check if the current buffer is a Claude Code buffer
-  local bufnr = vim.api.nvim_get_current_buf()
-  local is_claude_buffer = pcall(function() 
-    return vim.api.nvim_buf_get_var(bufnr, "claude_code_terminal") 
-  end)
+  -- Check for terminal mode buffer
+  local terminal_bufnr = nil
+  local is_terminal = false
   
-  -- If current buffer is not a Claude Code buffer, try to find one
-  if not is_claude_buffer then
-    local is_open, found_bufnr = M.is_open()
-    if is_open then
-      bufnr = found_bufnr
-    else
-      -- No Claude Code terminal is open
-      return
+  -- Check for sidebar mode buffers
+  local input_bufnr = nil
+  local output_bufnr = nil
+  local is_sidebar = false
+  
+  -- Check if any of the currently visible buffers are Claude Code buffers
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      -- Check for terminal buffer
+      local is_terminal_buffer = pcall(function() 
+        return vim.api.nvim_buf_get_var(bufnr, "claude_code_terminal") 
+      end)
+      
+      if is_terminal_buffer then
+        terminal_bufnr = bufnr
+        is_terminal = true
+      end
+      
+      -- Check for sidebar input buffer
+      local is_input_buffer = pcall(function() 
+        return vim.api.nvim_buf_get_var(bufnr, "claude_code_sidebar_input") 
+      end)
+      
+      if is_input_buffer then
+        input_bufnr = bufnr
+        is_sidebar = true
+      end
+      
+      -- Check for sidebar output buffer
+      local is_output_buffer = pcall(function() 
+        return vim.api.nvim_buf_get_var(bufnr, "claude_code_sidebar_output") 
+      end)
+      
+      if is_output_buffer then
+        output_bufnr = bufnr
+        is_sidebar = true
+      end
     end
   end
   
-  -- Get window ID for buffer
-  local win_id = vim.fn.bufwinid(bufnr)
-  
-  -- Stop any running job in this buffer (send SIGTERM)
-  pcall(function()
-    local job_id = vim.b[bufnr].terminal_job_id
-    if job_id then
-      vim.fn.jobstop(job_id)
+  -- Close terminal mode if open
+  if is_terminal and terminal_bufnr then
+    -- Get window ID for buffer
+    local win_id = vim.fn.bufwinid(terminal_bufnr)
+    
+    -- Stop any running job in this buffer (send SIGTERM)
+    pcall(function()
+      local job_id = vim.b[terminal_bufnr].terminal_job_id
+      if job_id then
+        vim.fn.jobstop(job_id)
+      end
+    end)
+    
+    -- Wait a brief moment to allow the job to terminate
+    vim.cmd("sleep 100m")
+    
+    -- Close the window if it exists
+    if win_id ~= -1 then
+      pcall(vim.api.nvim_win_close, win_id, true)
     end
-  end)
-  
-  -- Wait a brief moment to allow the job to terminate
-  vim.cmd("sleep 100m")
-  
-  -- Close the window if it exists
-  if win_id ~= -1 then
-    pcall(vim.api.nvim_win_close, win_id, true)
+    
+    -- Delete the buffer forcefully
+    if vim.api.nvim_buf_is_valid(terminal_bufnr) then
+      pcall(vim.api.nvim_buf_delete, terminal_bufnr, { force = true })
+    end
   end
   
-  -- Delete the buffer forcefully
-  if vim.api.nvim_buf_is_valid(bufnr) then
-    pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
+  -- Close sidebar mode if open
+  if is_sidebar then
+    -- Close and delete input buffer
+    if input_bufnr and vim.api.nvim_buf_is_valid(input_bufnr) then
+      local input_win_id = vim.fn.bufwinid(input_bufnr)
+      if input_win_id ~= -1 then
+        pcall(vim.api.nvim_win_close, input_win_id, true)
+      end
+      pcall(vim.api.nvim_buf_delete, input_bufnr, { force = true })
+    end
+    
+    -- Close and delete output buffer
+    if output_bufnr and vim.api.nvim_buf_is_valid(output_bufnr) then
+      local output_win_id = vim.fn.bufwinid(output_bufnr)
+      if output_win_id ~= -1 then
+        pcall(vim.api.nvim_win_close, output_win_id, true)
+      end
+      pcall(vim.api.nvim_buf_delete, output_bufnr, { force = true })
+    end
+    
+    -- Stop any running job associated with the sidebar
+    pcall(function()
+      if M.sidebar_job_id then
+        vim.fn.jobstop(M.sidebar_job_id)
+        M.sidebar_job_id = nil
+      end
+    end)
   end
 end
 
@@ -86,6 +151,8 @@ end
 function M.open()
   if M.config.mode == "terminal" then
     M.open_terminal()
+  elseif M.config.mode == "sidebar" then
+    M.open_sidebar()
   else
     vim.notify("Unsupported mode: " .. M.config.mode, vim.log.levels.ERROR)
   end
@@ -181,6 +248,223 @@ function M.open_terminal()
   
   -- Enter terminal mode automatically
   vim.cmd("startinsert")
+end
+
+-- Open Claude CLI in sidebar mode with input and output buffers
+function M.open_sidebar()
+  -- Store original window to return to later
+  local original_win = vim.api.nvim_get_current_win()
+  
+  -- Calculate window width for the sidebar (right side)
+  local sidebar_width = math.floor(vim.o.columns * 0.3) -- 30% of editor width
+  
+  -- Create output buffer (for Claude responses)
+  local output_bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_var(output_bufnr, "claude_code_sidebar_output", true)
+  vim.api.nvim_buf_set_name(output_bufnr, "Claude Output")
+  
+  -- Set output buffer options
+  vim.api.nvim_buf_set_option(output_bufnr, "buftype", "nofile")
+  vim.api.nvim_buf_set_option(output_bufnr, "swapfile", false)
+  vim.api.nvim_buf_set_option(output_bufnr, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(output_bufnr, "filetype", "markdown")
+  
+  -- Create sidebar window for output
+  vim.cmd("vsplit")
+  vim.cmd("vertical resize " .. sidebar_width)
+  vim.cmd("wincmd L") -- Move to far right
+  local output_win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(output_win, output_bufnr)
+  
+  -- Set window options for output window
+  vim.api.nvim_win_set_option(output_win, "wrap", true)
+  vim.api.nvim_win_set_option(output_win, "linebreak", true)
+  vim.api.nvim_win_set_option(output_win, "foldmethod", "manual")
+  vim.api.nvim_win_set_option(output_win, "foldenable", false)
+  
+  -- Set initial output content
+  vim.api.nvim_buf_set_lines(output_bufnr, 0, -1, false, {
+    "# Claude Code",
+    "",
+    "Type your queries in the input box below.",
+    "Responses will appear here.",
+    "",
+    "---"
+  })
+  
+  -- Create split for input at the bottom of sidebar
+  local input_height = 5 -- Number of lines for input
+  vim.cmd("split")
+  vim.cmd("resize " .. input_height)
+  local input_win = vim.api.nvim_get_current_win()
+  
+  -- Create input buffer
+  local input_bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_var(input_bufnr, "claude_code_sidebar_input", true)
+  vim.api.nvim_buf_set_name(input_bufnr, "Claude Input")
+  vim.api.nvim_win_set_buf(input_win, input_bufnr)
+  
+  -- Set buffer options for input
+  vim.api.nvim_buf_set_option(input_bufnr, "buftype", "nofile")
+  vim.api.nvim_buf_set_option(input_bufnr, "swapfile", false)
+  vim.api.nvim_buf_set_option(input_bufnr, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(input_bufnr, "filetype", "markdown")
+  
+  -- Set window options for input window
+  vim.api.nvim_win_set_option(input_win, "wrap", true)
+  vim.api.nvim_win_set_option(input_win, "linebreak", true)
+  
+  -- Function to handle submit action
+  local function submit_query()
+    -- Get input text
+    local input_text = table.concat(vim.api.nvim_buf_get_lines(input_bufnr, 0, -1, false), "\n")
+    
+    if input_text:gsub("%s+", "") == "" then
+      return -- Don't submit empty queries
+    end
+    
+    -- Append user query to output buffer
+    local current_lines = vim.api.nvim_buf_line_count(output_bufnr)
+    vim.api.nvim_buf_set_lines(output_bufnr, current_lines, current_lines, false, {
+      "## User",
+      input_text,
+      "",
+      "## Claude",
+      "Thinking..."
+    })
+    
+    -- Clear input buffer
+    vim.api.nvim_buf_set_lines(input_bufnr, 0, -1, false, {""})
+    
+    -- Scroll output to bottom
+    vim.api.nvim_win_set_cursor(output_win, {vim.api.nvim_buf_line_count(output_bufnr), 0})
+    
+    -- Prepare command to run Claude CLI
+    local temp_file = os.tmpname()
+    -- Write input to temp file
+    local file = io.open(temp_file, "w")
+    file:write(input_text)
+    file:close()
+    
+    -- Run Claude CLI with input from temp file
+    local cmd = M.config.command .. " < " .. temp_file
+    
+    -- Start job to run Claude CLI
+    M.sidebar_job_id = vim.fn.jobstart(cmd, {
+      stdout_buffered = true,
+      on_stdout = function(_, data)
+        if data then
+          -- Replace "Thinking..." with actual response
+          local response_line = current_lines + 4 -- Line with "Thinking..."
+          
+          -- Check if "Thinking..." line still exists in the buffer
+          local thinking_line = vim.api.nvim_buf_get_lines(output_bufnr, response_line - 1, response_line, false)[1]
+          if thinking_line and thinking_line:match("Thinking%.%.%.") then
+            -- Replace "Thinking..." with first line of response
+            vim.api.nvim_buf_set_lines(output_bufnr, response_line - 1, response_line, false, {data[1] or ""})
+            -- Add rest of response (if any)
+            if #data > 1 then
+              vim.api.nvim_buf_set_lines(output_bufnr, response_line, response_line, false, vim.list_slice(data, 2))
+            end
+          else
+            -- Append to end of buffer
+            vim.api.nvim_buf_set_lines(output_bufnr, -1, -1, false, data)
+          end
+          
+          -- Scroll output to bottom
+          vim.api.nvim_win_set_cursor(output_win, {vim.api.nvim_buf_line_count(output_bufnr), 0})
+        end
+      end,
+      on_exit = function()
+        -- Add separator after response
+        vim.api.nvim_buf_set_lines(output_bufnr, -1, -1, false, {"", "---", ""})
+        
+        -- Clean up temp file
+        os.remove(temp_file)
+        
+        -- Scroll output to bottom
+        vim.api.nvim_win_set_cursor(output_win, {vim.api.nvim_buf_line_count(output_bufnr), 0})
+        
+        -- Focus input window again
+        vim.api.nvim_set_current_win(input_win)
+      end
+    })
+  end
+  
+  -- Set up keymaps for input buffer
+  -- Map Ctrl+Enter to submit query
+  vim.api.nvim_buf_set_keymap(
+    input_bufnr,
+    "i",
+    "<C-CR>",
+    "<Esc>:lua require('claude-code').submit_sidebar_query()<CR>a",
+    { noremap = true, silent = true }
+  )
+  
+  vim.api.nvim_buf_set_keymap(
+    input_bufnr,
+    "n",
+    "<C-CR>",
+    ":lua require('claude-code').submit_sidebar_query()<CR>",
+    { noremap = true, silent = true }
+  )
+  
+  -- Map close key
+  vim.api.nvim_buf_set_keymap(
+    input_bufnr,
+    "n",
+    M.config.mappings.close,
+    ":lua require('claude-code').close()<CR>",
+    { noremap = true, silent = true }
+  )
+  
+  vim.api.nvim_buf_set_keymap(
+    output_bufnr,
+    "n",
+    M.config.mappings.close,
+    ":lua require('claude-code').close()<CR>",
+    { noremap = true, silent = true }
+  )
+  
+  -- Add window navigation keymaps
+  vim.api.nvim_buf_set_keymap(
+    input_bufnr,
+    "n",
+    "<C-h>",
+    "<C-w>h",
+    { noremap = true, silent = true }
+  )
+  
+  vim.api.nvim_buf_set_keymap(
+    input_bufnr,
+    "n",
+    "<C-j>",
+    "<C-w>j",
+    { noremap = true, silent = true }
+  )
+  
+  vim.api.nvim_buf_set_keymap(
+    input_bufnr,
+    "n",
+    "<C-k>",
+    "<C-w>k",
+    { noremap = true, silent = true }
+  )
+  
+  vim.api.nvim_buf_set_keymap(
+    input_bufnr,
+    "n",
+    "<C-l>",
+    "<C-w>l",
+    { noremap = true, silent = true }
+  )
+  
+  -- Focus input window and start in insert mode
+  vim.api.nvim_set_current_win(input_win)
+  vim.cmd("startinsert")
+  
+  -- Expose submit function globally
+  M.submit_sidebar_query = submit_query
 end
 
 -- Toggle Claude Code terminal
