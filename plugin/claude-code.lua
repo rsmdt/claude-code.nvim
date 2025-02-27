@@ -14,12 +14,16 @@ vim.api.nvim_create_user_command("ClaudeCode", function(opts)
     claude_code.open()
   elseif cmd == "close" then
     claude_code.close()
+  elseif cmd == "terminal" then
+    claude_code.open_terminal()
+  elseif cmd == "sidebar" then
+    claude_code.open_sidebar()
   else
-    vim.notify("Invalid command: " .. cmd .. ". Use 'toggle', 'open', or 'close'.", vim.log.levels.ERROR)
+    vim.notify("Invalid command: " .. cmd .. ". Use 'toggle', 'open', 'close', 'terminal', or 'sidebar'.", vim.log.levels.ERROR)
   end
 end, {
   nargs = "?",
   complete = function()
-    return { "toggle", "open", "close" }
+    return { "toggle", "open", "close", "terminal", "sidebar" }
   end
 })

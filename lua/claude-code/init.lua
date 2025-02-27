@@ -166,6 +166,31 @@ function M.open()
   end
 end
 
+-- Open Claude in terminal mode (for backward compatibility)
+function M.open_terminal()
+  -- For terminal mode, we need Claude CLI
+  if not utils.is_claude_available() then
+    vim.notify("Claude CLI not found in PATH. Please make sure 'claude' is installed and available.", vim.log.levels.ERROR)
+    return
+  end
+  return terminal.open()
+end
+
+-- Open Claude in sidebar mode (for backward compatibility)
+function M.open_sidebar()
+  -- For sidebar mode, we use MCP and need curl
+  if not utils.is_curl_available() then
+    vim.notify("Curl not found in PATH. Please make sure 'curl' is installed for API access.", vim.log.levels.ERROR)
+    return
+  end
+  
+  -- Initialize the sidebar and store handlers
+  local handlers = sidebar.open()
+  -- Save the submit function in the sidebar module for the public API
+  sidebar.submit_query_func = handlers.submit_query
+  return handlers
+end
+
 -- Toggle Claude Code interface
 function M.toggle()
   local is_open = M.is_open()

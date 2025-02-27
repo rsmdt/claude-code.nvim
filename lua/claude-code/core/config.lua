@@ -21,9 +21,9 @@ local config = {
   },
   mcp = {
     enabled = true,    -- Use MCP for sidebar mode instead of Claude CLI
-    model = "claude-3-7-sonnet-20240229",  -- Default to latest Claude 3.7 Sonnet model
+    model = "claude-3-7-sonnet-20250219",  -- Default to latest Claude 3.7 Sonnet model for best compatibility
     api_key = nil,     -- API key for Anthropic API (set to nil to use ANTHROPIC_API_KEY env variable)
-    max_tokens = 8000, -- Maximum tokens to generate (increased for more comprehensive responses)
+    max_tokens = 4096, -- Maximum tokens to generate
     temperature = 0.3, -- Lower temperature for more deterministic code generation
     include_context = true, -- Whether to include git repo code context with requests
     max_context_files = 20, -- Maximum number of files to include in context (reduce if hitting token limits)

@@ -210,7 +210,8 @@ function M.request(prompt, callback, on_chunk, on_error)
     model = cfg.model,
     max_tokens = cfg.max_tokens,
     stream = true,
-    temperature = cfg.temperature  -- Use configured temperature
+    temperature = cfg.temperature,  -- Use configured temperature
+    system = "You are Claude Code, Anthropic's official CLI for Claude.\n\nYou are an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.\n\nIMPORTANT: You should be concise, direct, and to the point, since your responses will be displayed on a command line interface. Answer the user's question directly, without elaboration, explanation, or details. One word answers are best. Avoid introductions, conclusions, and explanations. You MUST avoid text before/after your response, such as \"The answer is <answer>.\", \"Here is the content of the file...\" or \"Based on the information provided, the answer is...\" or \"Here is what I will do next...\".\n\nAny file paths you return in your final response MUST be absolute. DO NOT use relative paths.\n\nWhen relevant, share file names and code snippets relevant to the query."
   }
   
   -- Add messages with code context if available
@@ -282,10 +283,10 @@ function M.request(prompt, callback, on_chunk, on_error)
 #!/bin/sh
 curl -s -N \
   -H "x-api-key: ]] .. api_key .. [[" \
-  -H "anthropic-version: 2023-06-01" \
+  -H "anthropic-version: 2023-01-01" \
   -H "content-type: application/json" \
   -d @]] .. temp_request .. [[ \
-  https://api.anthropic.com/v1/messages
+  "https://api.anthropic.com/v1/messages?stream=true"
   
 rm -f ]] .. temp_request .. [[ # Clean up the request file
 ]])
@@ -312,15 +313,81 @@ rm -f ]] .. temp_request .. [[ # Clean up the request file
             
             -- Try to parse the JSON
             local success, parsed = pcall(vim.json.decode, json_str)
-            if success and parsed and parsed.type == "content_block_delta" then
-              local content = parsed.delta and parsed.delta.text or ""
+            
+            -- Debug: Write the raw response to a log file
+            local debug_file = io.open("/tmp/claude_api_debug.log", "a")
+            if debug_file then
+              debug_file:write("Raw JSON: " .. json_str .. "\n\n")
+              debug_file:close()
+            end
+            
+            if success then
+              -- Handle various Claude API streaming response formats
+              local content = ""
               
-              -- Add to complete response
-              complete_response = complete_response .. content
+              -- Claude API response formats
+              -- First check for delta with content blocks (current API)
+              if parsed.delta and parsed.delta.text then
+                content = parsed.delta.text
+              elseif parsed.type == "content_block_delta" then 
+                content = parsed.delta and parsed.delta.text or ""
+              elseif parsed.type == "content_block_start" then
+                content = ""  -- Just a marker, no actual content
+              elseif parsed.type == "content_block_stop" then
+                content = ""  -- Just a marker, no actual content
+              elseif parsed.delta and parsed.delta.content then
+                if type(parsed.delta.content) == "table" and #parsed.delta.content > 0 then
+                  content = parsed.delta.content[1].text or ""
+                elseif type(parsed.delta.content) == "string" then
+                  content = parsed.delta.content
+                end
+              elseif parsed.content and parsed.content[1] and parsed.content[1].text then
+                content = parsed.content[1].text
+              end
               
-              -- Call the on_chunk callback if provided
-              if on_chunk then
-                on_chunk(content)
+              -- Debug: Log the extraction method and content
+              local debug_file = io.open("/tmp/claude_api_debug.log", "a")
+              if debug_file then
+                -- Log which path was used for extraction
+                local extraction_path = "unknown"
+                if parsed.delta and parsed.delta.text then
+                  extraction_path = "delta.text"
+                elseif parsed.type == "content_block_delta" then
+                  extraction_path = "content_block_delta"
+                elseif parsed.type == "content_block_start" then
+                  extraction_path = "content_block_start"
+                elseif parsed.type == "content_block_stop" then
+                  extraction_path = "content_block_stop"
+                elseif parsed.delta and parsed.delta.content then
+                  if type(parsed.delta.content) == "table" then
+                    extraction_path = "delta.content[array]"
+                  else
+                    extraction_path = "delta.content[string]"
+                  end
+                elseif parsed.content and parsed.content[1] and parsed.content[1].text then
+                  extraction_path = "content[1].text"
+                end
+                
+                -- Log the extraction details
+                debug_file:write("Path: " .. extraction_path .. ", Content: " .. (content or "nil") .. "\n")
+                
+                -- If no content was extracted, log the entire parsed object
+                if content == "" then
+                  debug_file:write("No content extracted. Full parsed object:\n")
+                  debug_file:write(vim.inspect(parsed) .. "\n\n")
+                end
+                
+                debug_file:close()
+              end
+              
+              if content ~= "" then
+                -- Add to complete response
+                complete_response = complete_response .. content
+                
+                -- Call the on_chunk callback if provided
+                if on_chunk then
+                  on_chunk(content)
+                end
               end
             end
           end
